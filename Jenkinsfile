@@ -6,7 +6,7 @@ pipeline {
         stage('CI Pipeline') {
             steps {
                 script {
-                    ciPipeline(env: 'dev')
+                    ciPipeline('dev')
                 }
             }
         }
