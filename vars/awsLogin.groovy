@@ -1,6 +1,9 @@
 def call() {
-    bat 'echo Logging in to AWS (Simulated for Windows)'
-
-    // Simulate login (real login requires AWS CLI preinstalled)
-    bat 'aws --version'
+    withCredentials([[
+        $class: 'AmazonWebServicesCredentialsBinding',
+        credentialsId: 'aws-ecr-creds' // ✅ You must add this in Jenkins
+    ]]) {
+        bat 'aws sts get-caller-identity'
+        bat 'echo AWS credentials set for Terraform.'
+    }
 }
