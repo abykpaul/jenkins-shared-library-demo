@@ -1,10 +1,15 @@
-def call(Closure body) {
-    retry(2) {
+def call(int times = 3, Closure body) {
+    int attempt = 0
+    while (attempt < times) {
         try {
             body()
-        } catch (e) {
-            echo "Retry failed: ${e.message}"
-            throw e
+            return
+        } catch (err) {
+            echo "Attempt ${attempt + 1} failed: ${err}"
+            attempt++
+            if (attempt >= times) {
+                error "All ${times} attempts failed."
+            }
         }
     }
 }

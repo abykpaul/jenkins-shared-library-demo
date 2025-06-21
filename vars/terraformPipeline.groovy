@@ -1,7 +1,5 @@
-def call(env) {
-    dir("infra/${env}") {
-        sh "terraform init"
-        sh "terraform plan -var-file=${env}.tfvars"
-        sh "terraform apply -auto-approve -var-file=${env}.tfvars"
-    }
+def call(String env) {
+    bat "echo Initializing Terraform for ${env}"
+    bat "terraform -chdir=infra/${env} init"
+    bat "terraform -chdir=infra/${env} apply -var-file=${env}.tfvars -auto-approve"
 }

@@ -1,3 +1,3 @@
-def call(String message = "Do you want to proceed?") {
+def call(String message = 'Approve to proceed?') {
     input message
 }
