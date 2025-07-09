@@ -1,27 +1,22 @@
-// 👉 Shared Library function: Automates Terraform apply/destroy with health check + user input confirmation
-
+// 👇 Shared Library function: Automates Terraform workflow (init, validate, apply/destroy, health check)
 def call(Map config) {
-    // 🧾 Incoming parameters
-    def env     = config.env                          // Environment name: dev/prod
-    def action  = config.action ?: 'apply'            // Action type: apply or destroy
-    def tfvars  = config.tfvars ?: "${env}.tfvars"    // tfvars file path
-    def tfDir   = config.dir ?: "aws-free-tier-project/terraform/${env}"  // Terraform directory
+    def env     = config.env                          // 👉 'dev' or 'prod'
+    def action  = config.action ?: 'apply'            // 👉 Default action is 'apply'
+    def tfvars  = config.tfvars ?: "${env}.tfvars"    // 👉 tfvars file per environment
+    def tfDir   = config.dir ?: "aws-free-tier-project/terraform/${env}" // 👉 Terraform working directory
 
-    // 🔐 Load AWS credentials securely from Jenkins Credentials
     withCredentials([[ $class: 'AmazonWebServicesCredentialsBinding', credentialsId: config.credId ]]) {
-
-        // 🌍 Set AWS Region environment variable
         withEnv(["AWS_REGION=ap-south-1"]) {
 
             // 🔧 Terraform Init & Validate
-            bat "terraform -chdir=${tfDir} init -reconfigure"   // Reinitialize Terraform backend
-            bat "terraform -chdir=${tfDir} validate"            // Validate Terraform code
+            bat "terraform -chdir=${tfDir} init -reconfigure"
+            bat "terraform -chdir=${tfDir} validate"
 
             if (action == 'apply') {
                 // 📋 Terraform Plan
                 bat "terraform -chdir=${tfDir} plan -var-file=${tfvars}"
 
-                // 🔐 Wait for manual approval (even for dev)
+                // ✅ Manual approval for ALL environments (dev + prod)
                 timeout(time: 2, unit: 'MINUTES') {
                     input message: "🟢 Approve Terraform APPLY for ${env}?", ok: "Yes, Apply"
                 }
@@ -30,43 +25,40 @@ def call(Map config) {
                 bat "terraform -chdir=${tfDir} apply -auto-approve -var-file=${tfvars}"
                 echo "✅ Apply completed for ${env}"
 
-                // 🌐 Fetch public IP from Terraform output
+                // 🌍 Output public IP from Terraform
                 def publicIp = bat(script: "terraform -chdir=${tfDir} output -raw public_ip", returnStdout: true).trim()
-
                 echo "🧪 Performing health check on: http://${publicIp}"
 
-                // 🔍 Run curl test (HTTP health check)
-                def responseCode = powershell(returnStdout: true, script: """
-                    try {
-                        \$response = Invoke-WebRequest -Uri 'http://${publicIp}' -UseBasicParsing -TimeoutSec 10
-                        return \$response.StatusCode
-                    } catch {
-                        return 0
-                    }
-                """).trim()
+                // 💡 Use PowerShell for HTTP status code check on Windows agents
+                def statusCode = powershell(
+                    script: """
+                        \$response = Invoke-WebRequest -Uri "http://${publicIp}" -UseBasicParsing -TimeoutSec 10
+                        Write-Output \$response.StatusCode
+                    """,
+                    returnStdout: true
+                ).trim()
 
-                // ❌ Fail if HTTP response is not 200
-                if (responseCode != "200") {
-                    error "❌ Health check failed. Expected 200, got ${responseCode}"
+                // 🔍 Validate status
+                if (statusCode != '200') {
+                    error "❌ Health check failed. Expected 200, got ${statusCode}"
                 } else {
-                    echo "✅ Health check successful for ${env} (${publicIp})"
+                    echo "✅ Health check passed: HTTP ${statusCode}"
                 }
 
             } else if (action == 'destroy') {
-                // 🔄 Terraform Destroy Plan
+                // 💣 Terraform Destroy Plan
                 bat "terraform -chdir=${tfDir} plan -destroy -var-file=${tfvars}"
 
-                // 🛑 Wait for user input confirmation to destroy
+                // ⚠️ Ask confirmation before destruction (for ALL environments)
                 timeout(time: 2, unit: 'MINUTES') {
                     input message: "💥 Confirm Terraform DESTROY for ${env}?", ok: "Yes, Destroy"
                 }
 
-                // 🔥 Terraform Destroy
+                // 🧨 Destroy resources
                 bat "terraform -chdir=${tfDir} destroy -auto-approve -var-file=${tfvars}"
                 echo "💥 Destroy completed for ${env}"
 
             } else {
-                // 🚫 Invalid action
                 echo "📋 Unsupported action: ${action}"
             }
         }
