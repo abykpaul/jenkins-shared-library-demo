@@ -7,34 +7,40 @@ def call(Map config) {
     withCredentials([[ $class: 'AmazonWebServicesCredentialsBinding', credentialsId: config.credId ]]) {
         withEnv(["AWS_REGION=ap-south-1"]) {
 
-            // 🛠️ Terraform init & validate
+            // Init and Validate
             bat "terraform -chdir=${tfDir} init -reconfigure"
             bat "terraform -chdir=${tfDir} validate"
 
             if (action == 'apply') {
-
-                // 📋 Plan
                 bat "terraform -chdir=${tfDir} plan -var-file=${tfvars}"
 
-                // 🟢 Approval prompt with timeout
-                timeout(time: 2, unit: 'MINUTES') {
-                    input message: "🟢 Approve Terraform APPLY for ${env}?", ok: "Yes, Apply"
+                // ✅ Optional Approval
+                if (env == 'prod') {
+                    timeout(time: 2, unit: 'MINUTES') {
+                        input message: "🟢 Approve Terraform APPLY for ${env}?", ok: "Yes, Apply"
+                    }
                 }
 
-                // ✅ Apply
                 bat "terraform -chdir=${tfDir} apply -auto-approve -var-file=${tfvars}"
                 echo "✅ Apply completed for ${env}"
 
-                // 🧪 Health check
+                // 🧪 Health Check
                 def publicIp = powershell(
                     script: "terraform -chdir=${tfDir} output -raw public_ip",
                     returnStdout: true
                 ).trim()
 
-                echo "🧪 Performing curl test: http://${publicIp}"
+                echo "🧪 Performing health check on: http://${publicIp}"
 
                 def response = powershell(
-                    script: "curl -s -o \$null -w \"%{http_code}\" http://${publicIp}",
+                    script: """
+                    try {
+                        \$resp = Invoke-WebRequest -Uri "http://${publicIp}" -UseBasicParsing -TimeoutSec 5
+                        \$resp.StatusCode
+                    } catch {
+                        Write-Output 0
+                    }
+                    """,
                     returnStdout: true
                 ).trim()
 
@@ -45,16 +51,14 @@ def call(Map config) {
                 }
 
             } else if (action == 'destroy') {
-
-                // 🧨 Plan destroy
                 bat "terraform -chdir=${tfDir} plan -destroy -var-file=${tfvars}"
 
-                // ⚠️ Destroy confirmation with timeout
-                timeout(time: 2, unit: 'MINUTES') {
-                    input message: "💥 Confirm Terraform DESTROY for ${env}?", ok: "Yes, Destroy"
+                if (env == 'prod') {
+                    timeout(time: 2, unit: 'MINUTES') {
+                        input message: "💥 Confirm Terraform DESTROY for ${env}?", ok: "Yes, Destroy"
+                    }
                 }
 
-                // 💥 Destroy
                 bat "terraform -chdir=${tfDir} destroy -auto-approve -var-file=${tfvars}"
                 echo "💥 Destroy completed for ${env}"
 
