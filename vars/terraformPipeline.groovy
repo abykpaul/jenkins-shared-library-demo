@@ -11,13 +11,21 @@ def call(Map config) {
 
             if (action == 'apply') {
                 bat "terraform -chdir=${tfDir} plan -var-file=${tfvars}"
-                input message: "🟢 Approve Terraform APPLY for ${env}?", ok: "Yes, Apply"
+
+                timeout(time: 2, unit: 'MINUTES') {
+                    input message: "🟢 Approve Terraform APPLY for ${env}?", ok: "Yes, Apply"
+                }
+
                 bat "terraform -chdir=${tfDir} apply -auto-approve -var-file=${tfvars}"
                 echo "✅ Apply completed for ${env}"
 
             } else if (action == 'destroy') {
                 bat "terraform -chdir=${tfDir} plan -destroy -var-file=${tfvars}"
-                input message: "💥 Confirm Terraform DESTROY for ${env}?", ok: "Yes, Destroy"
+
+                timeout(time: 2, unit: 'MINUTES') {
+                    input message: "💥 Confirm Terraform DESTROY for ${env}?", ok: "Yes, Destroy"
+                }
+
                 bat "terraform -chdir=${tfDir} destroy -auto-approve -var-file=${tfvars}"
                 echo "💥 Destroy completed for ${env}"
 
