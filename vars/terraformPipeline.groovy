@@ -4,10 +4,10 @@ def call(Map config) {
     def tfvars  = config.tfvars ?: "${env}.tfvars"
     def tfDir   = config.dir ?: "aws-free-tier-project/terraform/${env}"
     def region  = config.region ?: 'ap-south-1'
-    def credId  = config.credId
 
-    withCredentials([[ $class: 'AmazonWebServicesCredentialsBinding', credentialsId: credId ]]) {
+    withCredentials([[ $class: 'AmazonWebServicesCredentialsBinding', credentialsId: config.credId ]]) {
         withEnv(["AWS_REGION=${region}"]) {
+
             bat "terraform -chdir=${tfDir} init -reconfigure"
             bat "terraform -chdir=${tfDir} validate"
 
@@ -21,25 +21,19 @@ def call(Map config) {
                 bat "terraform -chdir=${tfDir} apply -auto-approve -var-file=${tfvars}"
                 echo "✅ Apply completed for ${env}"
 
-                // 🧪 Health Check after Apply
-                echo "🌐 Fetching EC2 Public IP for ${env}"
-                def pubIp = bat(
-                    script: "terraform -chdir=${tfDir} output -raw public_ip",
+                // 🧪 Health Check (curl)
+                def publicIp = bat(script: "terraform -chdir=${tfDir} output -raw public_ip", returnStdout: true).trim()
+                echo "🧪 Performing curl test: http://${publicIp}"
+
+                def response = bat(
+                    script: """curl -s -o nul -w "%{http_code}" http://${publicIp}""",
                     returnStdout: true
                 ).trim()
 
-                echo "🌍 Public IP: ${pubIp}"
-                echo "🧪 Performing curl test: http://${pubIp}"
-
-                def result = bat(
-                    script: "curl -s -o /dev/null -w \"%{http_code}\" http://${pubIp}",
-                    returnStdout: true
-                ).trim()
-
-                if (result == "200") {
-                    echo "✅ App is running fine at http://${pubIp} (Status: ${result})"
+                if (response != "200") {
+                    error "❌ Health check failed. Expected 200, but got ${response}"
                 } else {
-                    error "❌ App unreachable at http://${pubIp} (Status: ${result})"
+                    echo "✅ Health check passed with HTTP ${response}"
                 }
 
             } else if (action == 'destroy') {
