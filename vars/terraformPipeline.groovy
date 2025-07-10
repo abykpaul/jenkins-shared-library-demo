@@ -1,5 +1,5 @@
 // ✅ Shared library method: Deploy or destroy infra using Terraform
-// ✅ This includes input prompt, plan, apply/destroy, and health check
+// ✅ This includes input prompt, plan, apply/destroy, and health check with retry logic
 
 def call(Map config) {
     // 🧾 Inputs from Jenkinsfile parameters or defaults
@@ -39,25 +39,40 @@ def call(Map config) {
 
                     echo "🧪 Performing health check on: http://${publicIp}"
 
-                    // 💡 Windows-safe PowerShell curl check
-                    def statusCode = powershell(
-                        script: """
-                            \$response = Invoke-WebRequest -Uri "http://${publicIp}" -UseBasicParsing -TimeoutSec 10
-                            Write-Output \$response.StatusCode
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    def attempts = 0
+                    def maxAttempts = 5
+                    def statusCode = ''
+
+                    while (attempts < maxAttempts) {
+                        statusCode = powershell(
+                            script: """
+                                try {
+                                    \$response = Invoke-WebRequest -Uri "http://${publicIp}" -UseBasicParsing -TimeoutSec 5
+                                    Write-Output \$response.StatusCode
+                                } catch {
+                                    Write-Output 0
+                                }
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        if (statusCode == '200') {
+                            echo "✅ Health check passed on attempt ${attempts + 1}: HTTP ${statusCode}"
+                            break
+                        } else {
+                            echo "⏳ Attempt ${attempts + 1}/5 failed. Status: ${statusCode}. Retrying in 5 seconds..."
+                            sleep(time: 5, unit: 'SECONDS')
+                            attempts++
+                        }
+                    }
 
                     if (statusCode != '200') {
-                        error "❌ Health check failed. Expected 200, got ${statusCode}"
-                    } else {
-                        echo "✅ Health check passed: HTTP ${statusCode}"
+                        error "❌ Health check failed after ${maxAttempts} attempts. Last status: ${statusCode}"
                     }
 
                 } catch (err) {
-                    error "❌ Health check failed: ${err.message}"
+                    error "❌ Health check script failed: ${err.message}"
                 }
-
             }
 
             // 🔥 Action: DESTROY
