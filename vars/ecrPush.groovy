@@ -9,7 +9,7 @@ def call(Map config) {
     }
 
     stage('Checkout App') {
-      git credentialsId: '45b1557e-3c87-4706-ac5f-f39c117d15d8', url: env.GIT_URL
+      git branch: 'main', credentialsId: '45b1557e-3c87-4706-ac5f-f39c117d15d8', url: env.GIT_URL
     }
 
     stage('Docker Build') {
@@ -20,7 +20,7 @@ def call(Map config) {
       withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDS]]) {
         bat """
           FOR /F %%i IN ('aws sts get-caller-identity --query "Account" --output text') DO SET ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
         """
       }
     }
