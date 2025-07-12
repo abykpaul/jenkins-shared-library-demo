@@ -18,7 +18,7 @@ def call(Map config) {
       stage('Docker Build') {
         steps {
           script {
-            sh "docker build -t $REPO_NAME:latest ."
+            bat "docker build -t %REPO_NAME%:latest ."
           }
         }
       }
@@ -26,10 +26,19 @@ def call(Map config) {
       stage('Login to ECR') {
         steps {
           withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: config.awsCredsId]]) {
-            sh """
-              aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin \
-              $(aws sts get-caller-identity --query 'Account' --output text).dkr.ecr.$AWS_REGION.amazonaws.com
-            """
+            script {
+              def accountId = bat(
+                script: 'aws sts get-caller-identity --query "Account" --output text',
+                returnStdout: true
+              ).trim()
+
+              def repoUri = "${accountId}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+
+              bat """
+                for /f %%i in ('aws sts get-caller-identity --query "Account" --output text') do set ACCOUNT_ID=%%i
+                aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+              """
+            }
           }
         }
       }
@@ -37,12 +46,10 @@ def call(Map config) {
       stage('Tag & Push Image') {
         steps {
           script {
-            def accountId = sh(script: "aws sts get-caller-identity --query 'Account' --output text", returnStdout: true).trim()
-            def repoUri = "${accountId}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}"
-
-            sh """
-              docker tag $REPO_NAME:latest $repoUri:latest
-              docker push $repoUri:latest
+            bat """
+              for /f %%i in ('aws sts get-caller-identity --query "Account" --output text') do set ACCOUNT_ID=%%i
+              docker tag %REPO_NAME%:latest %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
+              docker push %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
             """
           }
         }
