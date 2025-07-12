@@ -9,7 +9,7 @@ def call(Map config) {
     }
 
     stage('Checkout App') {
-      git url: env.GIT_URL
+      git credentialsId: '45b1557e-3c87-4706-ac5f-f39c117d15d8', url: env.GIT_URL
     }
 
     stage('Docker Build') {
