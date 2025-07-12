@@ -13,7 +13,9 @@ def call(Map config) {
     }
 
     stage('Docker Build') {
-      bat "docker build -t %REPO_NAME%:latest ."
+      dir("docker_ecr_app_deploy/myapp") {
+        bat "docker build -t %REPO_NAME%:latest ."
+      }
     }
 
     stage('Login to ECR') {
