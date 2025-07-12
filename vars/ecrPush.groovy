@@ -20,7 +20,7 @@ def call(Map config) {
       withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDS]]) {
         bat """
           FOR /F %%i IN ('aws sts get-caller-identity --query "Account" --output text') DO SET ACCOUNT_ID=%%i
-          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+          aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com
         """
       }
     }
