@@ -23,10 +23,10 @@ def call(Map config) {
         dir("docker_ecr_app_deploy/myapp") {
           bat """
             FOR /F %%i IN ('aws sts get-caller-identity --query "Account" --output text') DO (
-              SET ACCOUNT_ID=%%i
-              aws ecr get-login-password --region %AWS_REGION% | docker login --username AWS --password-stdin %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com
-              docker tag %REPO_NAME%:latest %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
-              docker push %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
+              CALL SET ACCOUNT_ID=%%i
+              CALL aws ecr get-login-password --region %AWS_REGION% ^| docker login --username AWS --password-stdin %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com
+              CALL docker tag %REPO_NAME%:latest %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
+              CALL docker push %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
             )
           """
         }
