@@ -27,12 +27,15 @@ def call(Map config) {
       }
     }
 
-    stage('Tag & Push Image') {
-      bat """
-        FOR /F %%i IN ('aws sts get-caller-identity --query "Account" --output text') DO SET ACCOUNT_ID=%%i
+  stage('Tag & Push Image') {
+    bat """
+      FOR /F %%i IN ('aws sts get-caller-identity --query "Account" --output text') DO (
+        SET ACCOUNT_ID=%%i
         docker tag %REPO_NAME%:latest %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
         docker push %%ACCOUNT_ID%%.dkr.ecr.%AWS_REGION%.amazonaws.com/%REPO_NAME%:latest
-      """
-    }
+      )
+    """
+  }
+
   }
 }
